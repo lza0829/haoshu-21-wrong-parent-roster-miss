@@ -28,6 +28,12 @@ export default function 入湖(){
       <button className="次" onClick={()=>灌("卫星错挂父样例")} disabled={!!忙}>
         {忙==="卫星错挂父样例"?"灌入中…":"灌入错挂父（整票失败闭）"}
       </button>
+      <button className="次" onClick={()=>灌("错挂待补父样例")} disabled={!!忙}>
+        {忙==="错挂待补父样例"?"灌入中…":"灌入错挂·待补父（登册隔离）"}
+      </button>
+      <button className="次" onClick={()=>灌("错挂后补父样例")} disabled={!!忙}>
+        {忙==="错挂后补父样例"?"灌入中…":"补建父枢纽（再灌同键看写闸）"}
+      </button>
     </div>
 
     {!报 && <div className="空态">尚未装载。先灌样例，再到枢纽 / 链接 / 卫星查看落库。</div>}
@@ -38,6 +44,7 @@ export default function 入湖(){
           <span className={`徽章 ${报.结果==="成功"?"通":"败"}`}>{报.结果||"完成"}</span>
           {报.批次编号 && <span className="批">{报.批次编号}</span>}
           {报.装载日 && <span className="日">装载日 {报.装载日}</span>}
+          {报.写闸口径 && <span className="日">写闸 {报.写闸口径}</span>}
           {报.说明 && <span className="日">{报.说明}</span>}
         </div>
         <div className="格" style={{marginBottom:明细.length? "0.85rem":0}}>
@@ -46,6 +53,18 @@ export default function 入湖(){
           <div className="卡"><b>{报数.卫星??0}</b><span>卫星写入</span></div>
           <div className="卡"><b>{报数.跳过??0}</b><span>跳过</span></div>
         </div>
+        {报.名册禁写?.length>0 && (
+          <>
+            <div className="段题">名册禁写（甲 · 名册未解除，整票拒绝）</div>
+            <ul className="明细">
+              {报.名册禁写.map((d,i)=>(
+                <li key={i}><b>{d.卫星类}卫星</b> · 键 {d.卫星键||"(空)"} · 父 {d.父哈希||"(空)"}
+                  · 名册 #{d.名册编号} · 父现可解 {d.父现可解 ? "是（仍拒绝）" : "否"} · {d.原因}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
         {报.错挂父?.length>0 && (
           <>
             <div className="段题">卫星挂错父（整票失败闭 · 正式零增量）</div>

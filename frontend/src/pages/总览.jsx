@@ -6,12 +6,18 @@ export default function 总览(){
   const 刷=()=>取("/总览").then(设);
   useEffect(()=>{刷();},[]);
   if(!数) return <p className="讯">加载中…</p>;
-  const 项=["号卡枢纽","套餐枢纽","客户枢纽","订购链接","实名链接","卫星当前","装载批次","隔离"];
+  const 项=["号卡枢纽","套餐枢纽","客户枢纽","订购链接","实名链接","卫星当前","装载批次","隔离","名册禁写"];
   const 末=数.末次贯验;
   return (<div>
     <h1 className="题">总览</h1>
-    <p className="述">号卡 / 套餐 / 客户入枢纽，订购与实名进链接，可变属性进卫星；贯验三件套贯穿互证。</p>
+    <p className="述">号卡 / 套餐 / 客户入枢纽，订购与实名进链接，可变属性进卫星；贯验三件套贯穿互证。写闸口径：{数.写闸口径}。</p>
     <div className="格">{项.map(k=><div className="卡" key={k}><b>{数[k]??0}</b><span>{k}</span></div>)}</div>
+    {数.名册禁写>0 && (
+      <div className="空态" style={{textAlign:"left"}}>
+        错挂隔离名册有 {数.名册禁写} 条生效禁写（共 {数.名册行} 行）：名册未解除前同键/同父卫星装载一律拒绝，
+        即使父已可解。到「错挂隔离名册」解除后方可重灌。
+      </div>
+    )}
     <div className="行"><button className="次" onClick={刷}>刷新</button></div>
     {末 ? (
       <div className="总览末">

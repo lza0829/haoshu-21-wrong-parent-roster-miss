@@ -80,7 +80,7 @@ export default function 贯验(){
 
     {挂父 && (
       <div className="段">
-        <div className="段题">挂错父贯验 · 口径 {挂父.口径}</div>
+        <div className="段题">挂错父贯验 · 口径 {挂父.口径} · 写闸 {挂父.写闸口径}</div>
         <div className="裁决" style={{gridTemplateColumns:"minmax(160px,220px) 1fr"}}>
           <div className={`裁决旗 ${挂父.是否通过?"通":"败"}`}>
             <div className="标">{挂父.是否通过?"无残留":"有残留"}</div>
@@ -90,8 +90,77 @@ export default function 贯验(){
             <div className="卡"><b>{挂父.扫描当前卫星数}</b><span>扫描当前卫星</span></div>
             <div className="卡"><b>{挂父.残留错挂数}</b><span>残留错挂</span></div>
             <div className="卡"><b>{挂父.证据?.挂错父证据条数??0}</b><span>整票证据</span></div>
+            <div className="卡"><b>{挂父.名册?.生效禁写数??0}</b><span>名册生效禁写</span></div>
+            <div className="卡"><b>{挂父.写闸核证?.分叉?.length??0}</b><span>父已可解仍禁写</span></div>
           </div>
         </div>
+
+        {挂父.写闸核证 && (
+          <div className="检列" style={{marginTop:"0.65rem"}}>
+            <div className="检条">
+              <div className={`检点 ${挂父.写闸核证.是否通过?"通":"败"}`}>{挂父.写闸核证.是否通过?"✓":"!"}</div>
+              <div className="检名">名册写闸核证（只读）</div>
+              <div className="检说">{挂父.写闸核证.说明}</div>
+            </div>
+          </div>
+        )}
+
+        {挂父.写闸核证?.分叉?.length>0 && (
+          <>
+            <div className="段题" style={{marginTop:"0.9rem"}}>名册分叉（父已可解，甲口径仍禁写，须先解名册）</div>
+            <table>
+              <thead><tr><th>名册编号</th><th>卫星类</th><th>卫星键</th><th>错误父哈希</th><th>期望父类</th><th>说明</th></tr></thead>
+              <tbody>{挂父.写闸核证.分叉.map(r=>(
+                <tr key={r.编号}>
+                  <td>{r.编号}</td>
+                  <td>{r.卫星类}</td>
+                  <td>{r.卫星键||"—"}</td>
+                  <td className="哈希">{r.错误父哈希||"—"}</td>
+                  <td>{r.期望父类}</td>
+                  <td>{r.说明}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </>
+        )}
+
+        {挂父.写闸核证?.已解?.length>0 && (
+          <>
+            <div className="段题" style={{marginTop:"0.9rem"}}>已解除名册行（解除后同键可重灌）</div>
+            <table>
+              <thead><tr><th>名册编号</th><th>批号</th><th>卫星类</th><th>卫星键</th><th>原因码</th><th>解除时刻</th><th>解除说明</th></tr></thead>
+              <tbody>{挂父.写闸核证.已解.map(r=>(
+                <tr key={r.编号}>
+                  <td>{r.编号}</td>
+                  <td>{r.批号}</td>
+                  <td>{r.卫星类}</td>
+                  <td>{r.卫星键||"—"}</td>
+                  <td><span className="徽章 淡">{r.原因码||"—"}</span></td>
+                  <td>{r.解除时刻||"—"}</td>
+                  <td>{r.解除说明||"—"}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </>
+        )}
+
+        {挂父.写闸核证?.违规?.length>0 && (
+          <>
+            <div className="段题" style={{marginTop:"0.9rem"}}>写闸违规</div>
+            <table>
+              <thead><tr><th>类型</th><th>批号/编号</th><th>卫星类</th><th>卫星键</th><th>说明</th></tr></thead>
+              <tbody>{挂父.写闸核证.违规.map((v,i)=>(
+                <tr key={i}>
+                  <td><span className="徽章 败">{v.类型}</span></td>
+                  <td>{v.批号||v.编号||"—"}</td>
+                  <td>{v.卫星类||"—"}</td>
+                  <td>{v.卫星键||"—"}</td>
+                  <td>{v.说明}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </>
+        )}
 
         {挂父.残留错挂?.length>0 && (
           <table>

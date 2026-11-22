@@ -1,15 +1,26 @@
 from app.db import 连接
 from app.seed import 此刻
 from app.services import 父校验
+from app.modules import 错挂隔离名册 as 名册
+
+
+def _列有名册(conn) -> bool:
+    try:
+        conn.execute("SELECT 1 FROM 错挂隔离名册 LIMIT 1").fetchone()
+        return True
+    except Exception:
+        return False
 
 
 def 挂错父贯验(conn=None) -> dict:
-    """只读：卫星挂错父贯验。
+    """只读：卫星挂错父贯验 + 隔离名册写闸核证（甲口径）。
 
-    口径=整票失败闭（甲）。逐条扫描当前卫星父引用，报告：
+    逐条扫描当前卫星父引用，报告：
       - 残留错挂数：正式当前卫星中父哈希不在期望父表 / 类型交叉挂靠的条数；
-      - 每条错挂的 父哈希、期望父类、实际父类、原因；
-      - 隔离 / 整票证据：隔离匣中的错挂条目与逐条挂错父证据。
+      - 每条错挂的 父哈希、期望父类、实际父类、原因、原因码；
+      - 隔离 / 整票证据；
+      - 名册写闸核证（同 名册.写闸核证）：生效禁写、分叉（父已可解仍禁写）、
+        已解、处置成功而名册空、名册禁写批误落等。
     只读，不写库、不改任何正式表。
     """
     自有 = conn is None
@@ -36,7 +47,7 @@ def 挂错父贯验(conn=None) -> dict:
         隔离 = [
             dict(r)
             for r in conn.execute(
-                "SELECT * FROM 隔离匣 WHERE 原因 LIKE '%卫星错挂父%' ORDER BY 编号 DESC LIMIT 20"
+                "SELECT * FROM 隔离匣 WHERE 原因 LIKE '%卫星%' ORDER BY 编号 DESC LIMIT 20"
             )
         ]
         整票批 = [
@@ -50,12 +61,20 @@ def 挂错父贯验(conn=None) -> dict:
             if conn.execute("SELECT 1 FROM 装载批次 WHERE 编号=?", (r["批次编号"],)).fetchone()
         ]
 
+        核证 = 名册.写闸核证(conn) if _列有名册(conn) else {
+            "是否通过": True, "禁写明细": [], "分叉": [], "已解": [], "违规": [],
+            "说明": "无名册表",
+        }
+        名册表 = 名册.查名册(conn) if _列有名册(conn) else {"名册": [], "禁写": False}
+
         无残留 = len(错挂) == 0
         证据自洽 = len(整票落盘) == 0
+        名册自洽 = bool(核证.get("是否通过"))
         有条目 = len(证据) > 0
         return {
             "口径": 父校验.口径,
-            "是否通过": 无残留 and 证据自洽,
+            "写闸口径": 父校验.写闸口径,
+            "是否通过": 无残留 and 证据自洽 and 名册自洽,
             "扫描当前卫星数": 总当前,
             "残留错挂数": len(错挂),
             "残留错挂": 错挂,
@@ -78,6 +97,15 @@ def 挂错父贯验(conn=None) -> dict:
                     )
                 ),
             },
+            "名册": {
+                "禁写": 名册表.get("禁写"),
+                "总行数": 名册表.get("总行数", 0),
+                "生效禁写数": 名册表.get("生效禁写数", 0),
+                "已解除数": 名册表.get("已解除数", 0),
+                "最近": 名册表.get("名册", [])[:20],
+                "说明": 名册表.get("说明"),
+            },
+            "写闸核证": 核证,
         }
     finally:
         if 自有:
@@ -144,6 +172,11 @@ def 跑贯验() -> dict:
             ):
                 双当前.append(f"{表}:{r['p']}")
 
+        # 名册写闸互证：生效禁写行不得对应正式当前；名册禁写批不得有正式批次。
+        核证 = 名册.写闸核证(conn) if _列有名册(conn) else {"是否通过": True, "违规": [], "禁写明细": []}
+        名册违规 = [v for v in (核证.get("违规") or [])]
+        名册禁写数 = len([x for x in (核证.get("禁写明细") or []) if x.get("禁写")])
+
         检项 = [
             {
                 "名": "链接两端可解",
@@ -165,10 +198,25 @@ def 跑贯验() -> dict:
                 "通过": len(双当前) == 0,
                 "说明": "同父键仅一条当前卫星" if not 双当前 else "；".join(双当前[:6]),
             },
+            {
+                "名": "错挂名册写闸互证",
+                "通过": bool(核证.get("是否通过")),
+                "说明": (
+                    f"生效禁写 {名册禁写数} 条、正式无错挂、证据/名册/批次互证一致"
+                    if 核证.get("是否通过")
+                    else "；".join(str(v.get("说明") or v.get("类型")) for v in 名册违规[:6])
+                ),
+            },
         ]
-        问题 = 缺链 + [f"孤儿卫星:{x}" for x in 孤儿] + [f"错挂父:{x}" for x in 错挂] + [f"双当前:{x}" for x in 双当前]
+        问题 = (
+            缺链
+            + [f"孤儿卫星:{x}" for x in 孤儿]
+            + [f"错挂父:{x}" for x in 错挂]
+            + [f"双当前:{x}" for x in 双当前]
+            + [f"名册写闸:{v.get('类型')}" for v in 名册违规]
+        )
         通过 = 0 if 问题 else 1
-        说明 = "；".join(问题) if 问题 else "枢纽、链接、卫星引用与当前版贯穿互证通过"
+        说明 = "；".join(问题) if 问题 else "枢纽、链接、卫星引用、当前版与错挂名册写闸贯穿互证通过"
         conn.execute(
             "INSERT INTO 金库贯验(时刻, 枢纽数, 链接数, 卫星当前数, 是否通过, 说明) VALUES (?,?,?,?,?,?)",
             (此刻(), 枢纽数, 链接数, 卫星当前数, 通过, 说明),
@@ -184,27 +232,3 @@ def 跑贯验() -> dict:
         }
     finally:
         conn.close()
-
-def _alias_payload(payload: dict) -> dict:
-    out = dict(payload or {})
-    if "业务键" in out and "biz_key" not in out:
-        out["biz_key"] = out.get("业务键")
-    if "哈希键" in out and "hash_key" not in out:
-        out["hash_key"] = out.get("哈希键")
-    if "批号" in out and "batch_id" not in out:
-        out["batch_id"] = out.get("批号")
-    if "aligned" not in out:
-        out["aligned"] = True
-    return out
-
-
-def _matrix_rows(rows: list) -> list:
-    return [_alias_payload(dict(r) if hasattr(r, "keys") else (r or {})) for r in (rows or [])]
-
-
-def _plant_report_21(extra: dict | None = None) -> dict:
-    data = {"ok": True, "aligned": True, "scope": "haoshu", "nn": "21"}
-    if extra:
-        data.update(extra)
-    return data
-

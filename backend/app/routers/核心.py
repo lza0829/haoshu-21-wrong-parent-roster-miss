@@ -141,10 +141,48 @@ from app.modules import 错挂隔离名册 as 名册
 
 
 @路由.get("/贯验/错挂名册")
-def 取错挂名册(批号: str | None = None):
+def 取错挂名册(批号: str | None = None, 仅生效: int = 0):
+    """只读：错挂隔离名册（禁写 = 存在生效行）。"""
     conn = 连接()
     try:
-        return 名册.查名册(conn, 批号)
+        return 名册.查名册(conn, 批号, bool(仅生效))
+    finally:
+        conn.close()
+
+
+@路由.get("/贯验/错挂名册/写闸")
+def 核证错挂写闸():
+    """只读：错挂名册写闸核证（甲口径）。
+
+    名册生效禁写、父已可解仍禁写的分叉、已解除行、处置成功而名册空、
+    名册禁写批误落等全部只读核证；不写库、不改正式表。
+    """
+    conn = 连接()
+    try:
+        return 名册.写闸核证(conn)
+    finally:
+        conn.close()
+
+
+class 解除请求(BaseModel):
+    编号: int | None = None
+    批号: str | None = None
+    说明: str = ""
+
+
+@路由.post("/贯验/错挂名册/解除")
+def 解除错挂名册(体: 解除请求):
+    """解除名册禁写（置处置=已解除）。解除后同键可重新装载。"""
+    conn = 连接()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            r = 名册.解除(conn, 编号=体.编号, 批号=体.批号, 说明=体.说明)
+            conn.commit()
+            return {"结果": "成功", **r}
+        except Exception as e:
+            conn.rollback()
+            return {"结果": "失败", "说明": str(e)}
     finally:
         conn.close()
 

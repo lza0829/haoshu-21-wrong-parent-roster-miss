@@ -8,6 +8,13 @@ def 总览() -> dict:
             return conn.execute(sql).fetchone()["c"]
 
         末 = conn.execute("SELECT * FROM 金库贯验 ORDER BY 编号 DESC LIMIT 1").fetchone()
+        try:
+            名册生效 = conn.execute(
+                "SELECT COUNT(*) AS c FROM 错挂隔离名册 WHERE 处置='隔离' AND COALESCE(解除时刻,'')=''"
+            ).fetchone()["c"]
+            名册总 = conn.execute("SELECT COUNT(*) AS c FROM 错挂隔离名册").fetchone()["c"]
+        except Exception:
+            名册生效 = 名册总 = 0
         return {
             "号卡枢纽": c("SELECT COUNT(*) AS c FROM 枢纽_号卡"),
             "套餐枢纽": c("SELECT COUNT(*) AS c FROM 枢纽_套餐"),
@@ -20,6 +27,9 @@ def 总览() -> dict:
             ),
             "装载批次": c("SELECT COUNT(*) AS c FROM 装载批次"),
             "隔离": c("SELECT COUNT(*) AS c FROM 隔离匣"),
+            "名册禁写": 名册生效,
+            "名册行": 名册总,
+            "写闸口径": "甲·隔离名册禁写",
             "末次贯验": dict(末) if 末 else None,
         }
     finally:
